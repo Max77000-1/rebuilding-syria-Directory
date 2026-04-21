@@ -16,19 +16,34 @@
     padding:4vh 4vw; box-sizing:border-box;
     overflow:hidden;
   }
-  #flipbook { flex:1; width:100%; max-height: calc(100% - 70px); overflow:hidden; }
+  #flipbook { flex:1; width:100%; max-height: calc(100% - 70px); overflow:hidden; position:relative; }
 
-  /* Kill all white backgrounds inside the page-flip library */
+  /* Kill white page backgrounds only — keep shadow elements natural */
   .stf__parent,
   .stf__wrapper,
   .stf__block,
-  .stf__item,
-  .stf__outerShadow,
-  .stf__innerShadow { background: transparent !important; }
+  .stf__item { background: transparent !important; }
 
-  /* Clip page-flip overflow so turning pages don't bleed outside the book */
+  /* Clip at parent level only — NOT on wrapper (clipping wrapper hides the opposite page during flip) */
   .stf__parent { overflow: hidden !important; }
-  .stf__wrapper { overflow: hidden !important; }
+
+  /* Spine shadow between the two pages */
+  #flipbook::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: calc(50% - 10px);
+    width: 20px;
+    background: linear-gradient(to right,
+      transparent 0%,
+      rgba(0,0,0,0.10) 35%,
+      rgba(0,0,0,0.18) 50%,
+      rgba(0,0,0,0.10) 65%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
 
   /* Our own page element */
   .page {
