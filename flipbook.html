@@ -8,17 +8,74 @@
 <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
 <style>
   html, body { margin:0; padding:0; }
-  body { background:#2E5077; display:flex; flex-direction:column; justify-content:center; align-items:center; width:100vw; height:88vh; font-family:sans-serif; padding:4vh 4vw; box-sizing:border-box; overflow:hidden; }
-  #flipbook { box-shadow: 0 10px 40px rgba(0,0,0,0.4); flex:1; width:100%; max-height: calc(100% - 70px); }
-  .controls { margin-top:18px; display:flex; gap:14px; align-items:center; flex-shrink:0; }
-  .controls button { background:#4DA1A9; color:#fff; border:0; width:44px; height:44px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition: background 0.2s; padding:0; }
+  body {
+    background:#2E5077;
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    width:100vw; height:88vh;
+    font-family:sans-serif;
+    padding:4vh 4vw; box-sizing:border-box;
+    overflow:hidden;
+  }
+  #flipbook { flex:1; width:100%; max-height: calc(100% - 70px); }
+
+  /* Kill all white backgrounds inside the page-flip library */
+  .stf__parent,
+  .stf__wrapper,
+  .stf__block,
+  .stf__item,
+  .stf__outerShadow,
+  .stf__innerShadow { background: transparent !important; }
+
+  /* Our own page element */
+  .page {
+    width:100%; height:100%;
+    position:relative;
+    background:transparent;
+    overflow:hidden;
+  }
+  .page img {
+    width:100%; height:100%;
+    display:block;
+    user-select:none;
+    -webkit-user-drag:none;
+  }
+  .page .links { position:absolute; inset:0; pointer-events:none; }
+  .page .links a {
+    position:absolute;
+    display:block;
+    pointer-events:auto;
+    /* keep invisible but hoverable */
+    background: transparent;
+  }
+  .page .links a:hover { background: rgba(77,161,169,0.15); }
+
+  .controls {
+    margin-top:18px;
+    display:flex; gap:14px; align-items:center;
+    flex-shrink:0;
+    position:relative; z-index:10;
+  }
+  .controls button {
+    background:#4DA1A9; color:#fff; border:0;
+    width:44px; height:44px; border-radius:50%;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: background 0.2s, transform 0.1s;
+    padding:0;
+  }
   .controls button:hover { background:#99C5CB; }
   .controls button:active { transform: scale(0.95); }
   .controls button svg { width:18px; height:18px; fill:#fff; }
   #counter { color:#fff; font-size:14px; min-width:60px; text-align:center; }
 
   #loading { display:flex; flex-direction:column; align-items:center; gap:14px; }
-  .spinner { width:48px; height:48px; border:4px solid rgba(255,255,255,0.2); border-top-color:#99C5CB; border-radius:50%; animation: spin 0.9s linear infinite; }
+  .spinner {
+    width:48px; height:48px;
+    border:4px solid rgba(255,255,255,0.2);
+    border-top-color:#99C5CB;
+    border-radius:50%;
+    animation: spin 0.9s linear infinite;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -26,13 +83,14 @@
 
 <div id="loading"><div class="spinner"></div></div>
 <div id="flipbook"></div>
+<div id="pages-src" style="display:none"></div>
 
 <div class="controls" style="display:none" id="ctrls">
-  <button id="rightBtn" aria-label="السابق">
+  <button id="rightBtn" type="button" aria-label="السابق">
     <svg viewBox="0 0 24 24"><path d="M8.5 5l7 7-7 7V5z"/></svg>
   </button>
   <span id="counter"></span>
-  <button id="leftBtn" aria-label="التالي">
+  <button id="leftBtn" type="button" aria-label="التالي">
     <svg viewBox="0 0 24 24"><path d="M15.5 19l-7-7 7-7v14z"/></svg>
   </button>
 </div>
@@ -44,29 +102,70 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const params = new URLSearchParams(window.location.search);
 const PDF_URL = params.get("pdf") || "report.pdf";
 
+// Rendering quality — higher = sharper but heavier
+const RENDER_SCALE = 3;
+const JPEG_QUALITY = 0.92;
+
 let pageFlip;
 
 (async () => {
   try {
     const pdf = await pdfjsLib.getDocument(PDF_URL).promise;
-    const pages = [];
+    const pagesSrc = document.getElementById("pages-src");
+
+    const firstPage = await pdf.getPage(1);
+    const vp1 = firstPage.getViewport({ scale: 1 });
+    const ratio = vp1.width / vp1.height;
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2 });
+      const viewport = page.getViewport({ scale: RENDER_SCALE });
       const canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-      pages.push(canvas.toDataURL("image/jpeg", 0.85));
+      await page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport
+      }).promise;
+
+      const pageEl = document.createElement("div");
+      pageEl.className = "page";
+
+      const img = document.createElement("img");
+      img.src = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+      pageEl.appendChild(img);
+
+      // Extract hyperlink annotations and overlay them as transparent <a> tags
+      const vpNat = page.getViewport({ scale: 1 });
+      const anns = await page.getAnnotations();
+      const linksEl = document.createElement("div");
+      linksEl.className = "links";
+
+      for (const a of anns) {
+        if (a.subtype !== "Link") continue;
+        const url = a.url || a.unsafeUrl;
+        if (!url) continue;
+        const [x1, y1, x2, y2] = a.rect;
+        const left   = (x1 / vpNat.width) * 100;
+        const top    = ((vpNat.height - y2) / vpNat.height) * 100;
+        const width  = ((x2 - x1) / vpNat.width) * 100;
+        const height = ((y2 - y1) / vpNat.height) * 100;
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.title = url;
+        link.style.cssText =
+          `left:${left}%;top:${top}%;width:${width}%;height:${height}%;`;
+        linksEl.appendChild(link);
+      }
+      pageEl.appendChild(linksEl);
+      pagesSrc.appendChild(pageEl);
     }
 
     document.getElementById("loading").style.display = "none";
     document.getElementById("ctrls").style.display = "flex";
-
-    const firstPage = await pdf.getPage(1);
-    const vp = firstPage.getViewport({ scale: 1 });
-    const ratio = vp.width / vp.height;
 
     pageFlip = new St.PageFlip(document.getElementById("flipbook"), {
       width: Math.round(600 * ratio),
@@ -76,22 +175,25 @@ let pageFlip;
       minHeight: 300, maxHeight: 1500,
       showCover: true,
       mobileScrollSupport: true,
+      useMouseEvents: true,
     });
 
-    // Load pages in original order (no reverse)
-    pageFlip.loadFromImages(pages);
+    pageFlip.loadFromHTML(pagesSrc.querySelectorAll(".page"));
 
-    // Right arrow = previous page (RTL feel)
-    // Left arrow = next page (RTL feel)
-    const rightBtn = document.getElementById("rightBtn");
-    const leftBtn = document.getElementById("leftBtn");
-
-    rightBtn.addEventListener("click", function() {
+    // Right arrow = previous (RTL); Left arrow = next
+    document.getElementById("rightBtn").addEventListener("click", (e) => {
+      e.preventDefault();
       pageFlip.flipPrev();
     });
-
-    leftBtn.addEventListener("click", function() {
+    document.getElementById("leftBtn").addEventListener("click", (e) => {
+      e.preventDefault();
       pageFlip.flipNext();
+    });
+
+    // Keyboard navigation
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight") pageFlip.flipPrev();
+      else if (e.key === "ArrowLeft") pageFlip.flipNext();
     });
 
     const updateCounter = () => {
@@ -103,7 +205,8 @@ let pageFlip;
     updateCounter();
 
   } catch (err) {
-    document.getElementById("loading").innerHTML = "<div style='color:#fff'>خطأ في التحميل: " + err.message + "</div>";
+    document.getElementById("loading").innerHTML =
+      "<div style='color:#fff'>خطأ في التحميل: " + err.message + "</div>";
     console.error(err);
   }
 })();
