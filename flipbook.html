@@ -16,7 +16,7 @@
     padding:4vh 4vw; box-sizing:border-box;
     overflow:hidden;
   }
-  #flipbook { flex:1; width:100%; max-height: calc(100% - 70px); }
+  #flipbook { flex:1; width:100%; max-height: calc(100% - 70px); overflow:hidden; }
 
   /* Kill all white backgrounds inside the page-flip library */
   .stf__parent,
@@ -25,6 +25,10 @@
   .stf__item,
   .stf__outerShadow,
   .stf__innerShadow { background: transparent !important; }
+
+  /* Clip page-flip overflow so turning pages don't bleed outside the book */
+  .stf__parent { overflow: hidden !important; }
+  .stf__wrapper { overflow: hidden !important; }
 
   /* Our own page element */
   .page {
