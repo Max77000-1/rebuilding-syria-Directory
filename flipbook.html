@@ -17,10 +17,10 @@
     overflow:hidden;
   }
   #flipbook {
-    flex:1; width:100%; max-height: calc(100% - 70px);
+    /* Starts flex:1 — JS will lock it to the exact book height after init */
+    flex:1; width:100%;
     overflow:hidden;
     position:relative;
-    /* Hard clip — prevents any child from bleeding outside the book on all devices */
     clip-path: inset(0 0 0 0);
   }
 
@@ -30,13 +30,12 @@
   .stf__block,
   .stf__item { background: transparent !important; }
 
-  /* Spine shadow between the two pages */
-  #flipbook::after {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0;
-    left: calc(50% - 10px);
-    width: 20px;
+  /* Spine shadow — injected by JS inside .stf__parent so it matches the book bounds */
+  #spine-shadow {
+    position:absolute;
+    top:0; bottom:0;
+    left:calc(50% - 10px);
+    width:20px;
     background: linear-gradient(to right,
       transparent 0%,
       rgba(0,0,0,0.10) 35%,
@@ -44,14 +43,13 @@
       rgba(0,0,0,0.10) 65%,
       transparent 100%
     );
-    pointer-events: none;
-    z-index: 10;
+    pointer-events:none;
+    z-index:10;
   }
 
-  /* Tighter padding on mobile so the 2-page spread has maximum room */
+  /* Tighter padding on mobile */
   @media (max-width: 600px) {
     body { padding: 2vh 2vw; }
-    #flipbook { max-height: calc(100% - 56px); }
     .controls { margin-top: 10px; }
     .controls button { width: 38px; height: 38px; }
   }
@@ -210,6 +208,43 @@ let pageFlip;
     });
 
     pageFlip.loadFromHTML(pagesSrc.querySelectorAll(".page"));
+
+    // --- Fit #flipbook to the exact rendered book size ---
+    // This prevents empty space above/below where flip animation would bleed.
+    const fitFlipbook = () => {
+      const parent = document.querySelector(".stf__parent");
+      const el = document.getElementById("flipbook");
+      if (!parent || !el) return;
+      const h = parent.offsetHeight;
+      if (h > 50) {
+        el.style.flex   = "0 0 " + h + "px";
+        el.style.height = h + "px";
+        el.style.maxHeight = h + "px";
+      }
+    };
+
+    // Inject spine shadow inside .stf__parent (sized to the actual book)
+    const addSpine = () => {
+      const parent = document.querySelector(".stf__parent");
+      if (!parent || document.getElementById("spine-shadow")) return;
+      parent.style.position = "relative";
+      const s = document.createElement("div");
+      s.id = "spine-shadow";
+      parent.appendChild(s);
+    };
+
+    // Run after first browser paint
+    requestAnimationFrame(() => {
+      fitFlipbook();
+      addSpine();
+    });
+
+    // Re-fit on window resize (debounced)
+    let _resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(_resizeTimer);
+      _resizeTimer = setTimeout(() => requestAnimationFrame(fitFlipbook), 150);
+    });
 
     // Right arrow = previous (RTL); Left arrow = next
     document.getElementById("rightBtn").addEventListener("click", (e) => {
