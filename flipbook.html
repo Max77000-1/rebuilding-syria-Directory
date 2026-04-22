@@ -16,16 +16,19 @@
     padding:4vh 4vw; box-sizing:border-box;
     overflow:hidden;
   }
-  #flipbook { flex:1; width:100%; max-height: calc(100% - 70px); overflow:hidden; position:relative; }
+  #flipbook {
+    flex:1; width:100%; max-height: calc(100% - 70px);
+    overflow:hidden;
+    position:relative;
+    /* Hard clip — prevents any child from bleeding outside the book on all devices */
+    clip-path: inset(0 0 0 0);
+  }
 
-  /* Kill white page backgrounds only — keep shadow elements natural */
+  /* Kill white page backgrounds only */
   .stf__parent,
   .stf__wrapper,
   .stf__block,
   .stf__item { background: transparent !important; }
-
-  /* Clip at parent level only — NOT on wrapper (clipping wrapper hides the opposite page during flip) */
-  .stf__parent { overflow: hidden !important; }
 
   /* Spine shadow between the two pages */
   #flipbook::after {
@@ -43,6 +46,14 @@
     );
     pointer-events: none;
     z-index: 10;
+  }
+
+  /* Tighter padding on mobile so the 2-page spread has maximum room */
+  @media (max-width: 600px) {
+    body { padding: 2vh 2vw; }
+    #flipbook { max-height: calc(100% - 56px); }
+    .controls { margin-top: 10px; }
+    .controls button { width: 38px; height: 38px; }
   }
 
   /* Our own page element */
@@ -190,10 +201,11 @@ let pageFlip;
       width: Math.round(600 * ratio),
       height: 600,
       size: "stretch",
-      minWidth: 300, maxWidth: 2000,
-      minHeight: 300, maxHeight: 1500,
+      minWidth: 150, maxWidth: 2000,
+      minHeight: 200, maxHeight: 1500,
       showCover: true,
-      mobileScrollSupport: true,
+      usePortrait: false,       // Always show 2 pages side by side on all devices
+      mobileScrollSupport: false, // Capture touch for flipping, not scrolling
       useMouseEvents: true,
     });
 
