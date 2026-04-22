@@ -96,7 +96,17 @@
   .controls button svg { width:18px; height:18px; fill:#fff; }
   #counter { color:#fff; font-size:14px; min-width:60px; text-align:center; }
 
-  #loading { display:flex; flex-direction:column; align-items:center; gap:14px; }
+  /* Loading spinner: fixed centre — independent of flexbox layout */
+  #loading {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    pointer-events: none;
+  }
   .spinner {
     width:48px; height:48px;
     border:4px solid rgba(255,255,255,0.2);
@@ -210,20 +220,7 @@ let pageFlip;
     pageFlip.loadFromHTML(pagesSrc.querySelectorAll(".page"));
 
     // --- Fit #flipbook to the exact rendered book size ---
-    // This prevents empty space above/below where flip animation would bleed.
-    const fitFlipbook = () => {
-      const parent = document.querySelector(".stf__parent");
-      const el = document.getElementById("flipbook");
-      if (!parent || !el) return;
-      const h = parent.offsetHeight;
-      if (h > 50) {
-        el.style.flex   = "0 0 " + h + "px";
-        el.style.height = h + "px";
-        el.style.maxHeight = h + "px";
-      }
-    };
-
-    // Inject spine shadow inside .stf__parent (sized to the actual book)
+    // Also injects spine shadow — but ONLY once the book has a real height.
     const addSpine = () => {
       const parent = document.querySelector(".stf__parent");
       if (!parent || document.getElementById("spine-shadow")) return;
@@ -233,10 +230,22 @@ let pageFlip;
       parent.appendChild(s);
     };
 
+    const fitFlipbook = () => {
+      const parent = document.querySelector(".stf__parent");
+      const el = document.getElementById("flipbook");
+      if (!parent || !el) return;
+      const h = parent.offsetHeight;
+      if (h > 50) {
+        el.style.flex      = "0 0 " + h + "px";
+        el.style.height    = h + "px";
+        el.style.maxHeight = h + "px";
+        addSpine(); // spine appears only when the book is fully rendered
+      }
+    };
+
     // Run after first browser paint
     requestAnimationFrame(() => {
       fitFlipbook();
-      addSpine();
     });
 
     // Re-fit on window resize (debounced)
