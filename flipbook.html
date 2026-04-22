@@ -24,13 +24,19 @@
     clip-path: inset(0 0 0 0);
   }
 
-  /* Kill white page backgrounds only */
+  /* Kill white page backgrounds */
   .stf__parent,
   .stf__wrapper,
   .stf__block,
   .stf__item { background: transparent !important; }
 
-  /* Spine shadow — injected by JS inside .stf__parent so it matches the book bounds */
+  /* Clip flip animation at the BOOK boundary — prevents bleeding on all devices */
+  .stf__parent {
+    clip-path: inset(0 0 0 0) !important;
+    overflow: hidden !important;
+  }
+
+  /* Spine shadow (desktop only) */
   #spine-shadow {
     position:absolute;
     top:0; bottom:0;
@@ -47,11 +53,12 @@
     z-index:10;
   }
 
-  /* Tighter padding on mobile */
-  @media (max-width: 600px) {
+  /* Mobile: tighter padding, no spine shadow */
+  @media (max-width: 768px) {
     body { padding: 2vh 2vw; }
     .controls { margin-top: 10px; }
     .controls button { width: 38px; height: 38px; }
+    #spine-shadow { display: none !important; }
   }
 
   /* Our own page element */
@@ -233,20 +240,26 @@ let pageFlip;
     const fitFlipbook = () => {
       const parent = document.querySelector(".stf__parent");
       const el = document.getElementById("flipbook");
-      if (!parent || !el) return;
+      if (!parent || !el) return false;
       const h = parent.offsetHeight;
       if (h > 50) {
         el.style.flex      = "0 0 " + h + "px";
         el.style.height    = h + "px";
         el.style.maxHeight = h + "px";
         addSpine(); // spine appears only when the book is fully rendered
+        return true;
       }
+      return false;
     };
 
-    // Run after first browser paint
-    requestAnimationFrame(() => {
-      fitFlipbook();
-    });
+    // Retry fit until .stf__parent has a real height (mobile can be slower)
+    let _fitAttempts = 0;
+    const tryFit = () => {
+      if (!fitFlipbook() && _fitAttempts++ < 15) {
+        setTimeout(tryFit, 80);
+      }
+    };
+    requestAnimationFrame(tryFit);
 
     // Re-fit on window resize (debounced)
     let _resizeTimer;
